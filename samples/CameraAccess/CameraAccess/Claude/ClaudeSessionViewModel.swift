@@ -13,7 +13,7 @@ import SwiftUI
 
 @MainActor
 final class ClaudeSessionViewModel: ObservableObject {
-  @Published var isActive: Bool = false
+  @Published var isClaudeActive: Bool = false
   @Published var connectionState: ClaudeConnectionState = .disconnected
   @Published var isModelSpeaking: Bool = false
   @Published var errorMessage: String?
@@ -33,7 +33,7 @@ final class ClaudeSessionViewModel: ObservableObject {
   var streamingMode: StreamingMode = .glasses
 
   func startSession() async {
-    guard !isActive else { return }
+    guard !isClaudeActive else { return }
 
     guard ClaudeConfig.isConfigured else {
       errorMessage = "Anthropic API key not configured. Open Secrets.swift and set anthropicAPIKey -- get a key at https://console.anthropic.com/settings/keys"
@@ -47,7 +47,7 @@ final class ClaudeSessionViewModel: ObservableObject {
       return
     }
 
-    isActive = true
+    isClaudeActive = true
 
     // Wire speech -> Claude
     speech.onUtteranceCaptured = { [weak self] text in
@@ -91,7 +91,7 @@ final class ClaudeSessionViewModel: ObservableObject {
     claudeService.onDisconnected = { [weak self] reason in
       guard let self else { return }
       Task { @MainActor in
-        guard self.isActive else { return }
+        guard self.isClaudeActive else { return }
         self.stopSession()
         self.errorMessage = "Connection lost: \(reason ?? "Unknown error")"
       }
@@ -139,7 +139,7 @@ final class ClaudeSessionViewModel: ObservableObject {
       try speech.setupAudioSession(useIPhoneMode: streamingMode == .iPhone)
     } catch {
       errorMessage = "Audio setup failed: \(error.localizedDescription)"
-      isActive = false
+      isClaudeActive = false
       return
     }
 
@@ -152,7 +152,7 @@ final class ClaudeSessionViewModel: ObservableObject {
       claudeService.disconnect()
       stateObservation?.cancel()
       stateObservation = nil
-      isActive = false
+      isClaudeActive = false
       connectionState = .disconnected
       return
     }
@@ -164,7 +164,7 @@ final class ClaudeSessionViewModel: ObservableObject {
       claudeService.disconnect()
       stateObservation?.cancel()
       stateObservation = nil
-      isActive = false
+      isClaudeActive = false
       connectionState = .disconnected
       return
     }
@@ -173,7 +173,7 @@ final class ClaudeSessionViewModel: ObservableObject {
       eventClient.onNotification = { [weak self] text in
         guard let self else { return }
         Task { @MainActor in
-          guard self.isActive, self.connectionState == .ready else { return }
+          guard self.isClaudeActive, self.connectionState == .ready else { return }
           // Inject server-pushed notifications as if the user had said them.
           self.claudeService.sendUserUtterance(text)
         }
@@ -191,7 +191,7 @@ final class ClaudeSessionViewModel: ObservableObject {
     claudeService.disconnect()
     stateObservation?.cancel()
     stateObservation = nil
-    isActive = false
+    isClaudeActive = false
     connectionState = .disconnected
     isModelSpeaking = false
     userTranscript = ""
@@ -201,7 +201,7 @@ final class ClaudeSessionViewModel: ObservableObject {
 
   func sendVideoFrameIfThrottled(image: UIImage) {
     guard SettingsManager.shared.videoStreamingEnabled else { return }
-    guard isActive, connectionState == .ready else { return }
+    guard isClaudeActive, connectionState == .ready else { return }
     let now = Date()
     guard now.timeIntervalSince(lastVideoFrameTime) >= ClaudeConfig.videoFrameInterval else { return }
     lastVideoFrameTime = now
